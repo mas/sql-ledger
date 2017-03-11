@@ -247,7 +247,7 @@ sub all_transactions {
     $query .= qq|$union
                  SELECT a.id, a.reference, a.description, ac.transdate,
 	         $false AS invoice, ac.amount, 'gl' as module, ac.cleared,
-		 ac.source,
+		 ac.source, ac.memo,
 		 '' AS till, ac.chart_id, '0' AS vc_id
 		 FROM gl a
 		 JOIN acc_trans ac ON (ac.trans_id = a.id)
@@ -263,7 +263,7 @@ sub all_transactions {
       
                  SELECT a.id, a.invnumber, c.name, ac.transdate,
 	         a.invoice, ac.amount, 'ar' as module, ac.cleared,
-		 ac.source,
+		 ac.source, ac.memo,
 		 a.till, ac.chart_id, c.id AS vc_id
 		 FROM ar a
 		 JOIN acc_trans ac ON (ac.trans_id = a.id)
@@ -280,7 +280,7 @@ sub all_transactions {
       
                  SELECT a.id, a.invnumber, v.name, ac.transdate,
 	         a.invoice, ac.amount, 'ap' as module, ac.cleared,
-		 ac.source,
+		 ac.source, ac.memo,
 		 a.till, ac.chart_id, v.id AS vc_id
 		 FROM ap a
 		 JOIN acc_trans ac ON (ac.trans_id = a.id)

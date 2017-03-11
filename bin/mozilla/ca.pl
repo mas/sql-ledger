@@ -280,10 +280,11 @@ sub list_transactions {
   $column_header{credit} = qq|<th class=listheading>|.$locale->text('Credit').qq|</th>|;
   $column_header{balance} = qq|<th class=listheading>|.$locale->text('Balance').qq|</th>|;
   $column_header{accno} = qq|<th class=listheading>|.$locale->text('AR/AP').qq|</th>|;
+  $column_header{memo} = qq|<th class=listheading>|.$locale->text('Memo').qq|</th>|;
 
-  @columns = qw(transdate reference description debit credit);
+  @columns = qw(transdate reference description memo debit credit);
   if ($form->{link} =~ /_paid/) {
-    @columns = qw(transdate reference description source cleared debit credit);
+    @columns = qw(transdate reference description memo source cleared debit credit);
   }
   push @columns, "accno" if $form->{l_accno};
   @column_index = $form->sort_columns(@columns);
@@ -426,6 +427,7 @@ sub list_transactions {
     } else {
       $column_data{description} = qq|<td>$ca->{description}&nbsp;</td>|;
     }
+    $column_data{memo} = qq|<td>$ca->{memo}&nbsp;</td>|;
     
     $column_data{cleared} = ($ca->{cleared}) ? qq|<td>*</td>| : qq|<td>&nbsp;</td>|;
     $column_data{source} = qq|<td>$ca->{source}&nbsp;</td>|;
