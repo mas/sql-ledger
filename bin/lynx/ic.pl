@@ -509,7 +509,7 @@ sub form_header {
   if ($form->{item} =~ /(assembly|kit)/) {
 
     $avgcost = "";
-    
+
     if ($form->{project_id}) {
       $weight = qq|
 	      <tr>
@@ -556,11 +556,17 @@ sub form_header {
 |;
     }
     
-
     if ($form->{project_id}) {
-      $lastcost = "";
+
+      $lastcost = qq|
+ 	      <tr>
+                <th align="right" nowrap="true">|.$locale->text('Last Cost').qq|</th>
+                <td>$form->{lastcost}</td>
+		<input type=hidden name=lastcost value=$form->{lastcost}>
+              </tr>
+|;
+
       $avgcost = "";
-      $onhand = "";
       $rop = "";
 
     } else {
@@ -2206,7 +2212,7 @@ sub print_ {
   }
 
   if ($form->{formname} eq 'barcode') {
-    $form->{templates} = "$templates/$myconfig{dbname}";
+    $form->{templates} = "$templates/$myconfig{templates}";
     $form->{IN} = "$form->{formname}.$form->{format}";
     
     if ($form->{format} =~ /(ps|pdf)/) {

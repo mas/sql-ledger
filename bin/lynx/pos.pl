@@ -17,6 +17,7 @@
 
 sub add {
 
+  $form->{nextsub} ||= "add";
   $form->{callback} = "$form->{script}?action=$form->{nextsub}&path=$form->{path}&login=$form->{login}" unless $form->{callback};
   
   $form->{type} =  "pos_invoice";
@@ -886,7 +887,7 @@ sub display_row {
         </tr>
 |;
 
-    for (qw(id linetotal listprice lastcost taxaccounts pricematrix sku barcode partsgroup unit onhand inventory_accno_id income_accno_id expense_accno_id)) { $form->hide_form("${_}_$i") }
+    for (qw(id linetotal listprice lastcost taxaccounts pricematrix sku barcode partsgroup unit onhand assembly inventory_accno_id income_accno_id expense_accno_id)) { $form->hide_form("${_}_$i") }
     
   }
 
@@ -1062,7 +1063,7 @@ sub print_form {
   push @a, qw(company address tel fax businessnumber companyemail companywebsite username);
   $form->format_string(@a);
 
-  $form->{templates} = "$templates/$myconfig{dbname}";
+  $form->{templates} = "$templates/$myconfig{templates}";
   $form->{IN} = "$form->{type}.$form->{format}";
 
   if ($form->{format} =~ /(ps|pdf)/) {
