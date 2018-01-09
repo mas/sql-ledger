@@ -24,14 +24,14 @@ sub projects {
   $form->{sort} ||= "projectnumber";
   
   my $query;
-  my $where = "WHERE 1=1";
+  my $where = "WHERE pr.parts_id = 0 OR pr.parts_id IS NULL";
   
   $query = qq|SELECT pr.*, c.name
 	      FROM project pr
 	      LEFT JOIN customer c ON (c.id = pr.customer_id)|;
 
   if ($form->{type} eq 'job') {
-    $where .= qq| AND pr.id NOT IN (SELECT DISTINCT id
+    $where = qq|WHERE pr.id NOT IN (SELECT DISTINCT id
 			            FROM parts
 			            WHERE project_id > 0)|;
   }
@@ -264,6 +264,8 @@ sub list_stock {
   }
   $sth->finish;
 
+  $form->all_warehouses($myconfig, $dbh);
+
   $form->{stockingdate} ||= $form->current_date($myconfig);
   
   $dbh->disconnect;
@@ -354,8 +356,8 @@ sub get_job {
   my $sth;
   my $ref;
 
-  my %defaults = $form->get_defaults($dbh, \@{['weightunit']});
-  $form->{weightunit} = $defaults{weightunit};
+  my %defaults = $form->get_defaults($dbh, \@{['weightunit', 'precision']});
+  for (keys %defaults) { $form->{$_} = $defaults{$_} }
   
   if ($form->{id} *= 1) {
     
@@ -629,6 +631,9 @@ sub stock_assembly {
   # connect to database
   my $dbh = $form->dbconnect_noauto($myconfig);
 
+  my %defaults = $form->get_defaults($dbh, \@{['precision']});
+  for (keys %defaults) { $form->{$_} = $defaults{$_} }
+
   my $ref;
   
   my $query = qq|SELECT *
@@ -662,6 +667,11 @@ sub stock_assembly {
               VALUES (?, ?, ?, '0', '0')|;
   my $ath = $dbh->prepare($query) || $form->dberror($query);
 
+  (undef, $form->{employee_id}) = $form->get_employee($dbh);
+  $query = qq|INSERT INTO inventory (warehouse_id, parts_id, qty, shippingdate, employee_id)
+              VALUES (?, ?, ?, '$form->{stockingdate}', $form->{employee_id})|;
+  my $ith = $dbh->prepare($query) || $form->dberror($query);
+
   my $i = 0;
   my $sold;
   my $ship;
@@ -689,6 +699,7 @@ sub stock_assembly {
       my %assembly = ();
       my $sellprice = 0;
       my $listprice = 0;
+      my $lastcost = 0;
       
       $jth->execute($form->{"id_$i"});
       while ($jref = $jth->fetchrow_hashref(NAME_lc)) {
@@ -715,9 +726,9 @@ sub stock_assembly {
                   WHERE partnumber = '$uid'|;
       ($uid) = $dbh->selectrow_array($query);
 
-      $lastcost = $form->round_amount($lastcost / $stock, $form->{precision});
-      $sellprice = ($pref->{sellprice}) ? $pref->{sellprice} : $form->round_amount($sellprice / $stock, $form->{precision});
-      $listprice = ($pref->{listprice}) ? $pref->{listprice} : $form->round_amount($listprice / $stock, $form->{precision});
+      $lastcost = $form->round_amount($lastcost / ($ref->{production} / $stock), $form->{precision});
+      $sellprice = ($pref->{sellprice}) ? $pref->{sellprice} : $form->round_amount($sellprice / ($ref->{production} / $stock), $form->{precision});
+      $listprice = ($pref->{listprice}) ? $pref->{listprice} : $form->round_amount($listprice / ($ref->{production} / $stock), $form->{precision});
 
       $rvh->execute($form->{"id_$i"});
       my ($rev) = $rvh->fetchrow_array;
@@ -725,7 +736,7 @@ sub stock_assembly {
       
       $query = qq|UPDATE parts SET
                   partnumber = '$pref->{partnumber}-$rev',
-		  description = '$pref->{partdescription}',
+		  description = '$pref->{description}',
 		  priceupdate = '$form->{stockingdate}',
 		  unit = '$pref->{unit}',
 		  listprice = $listprice,
@@ -754,7 +765,13 @@ sub stock_assembly {
 	  $ath->finish;
 	}
       }
-      
+
+      if ($form->{"warehouse_$i"}) {
+        (undef, $form->{warehouse_id}) = split /--/, $form->{"warehouse_$i"};
+        $ith->execute($form->{warehouse_id}, $uid, $stock);
+        $ith->finish;
+      }
+     
       $form->update_balance($dbh,
                             "project",
 			    "completed",
@@ -771,7 +788,6 @@ sub stock_assembly {
       $sth->finish;
       
     }
-
   }
 
   my $rc = $dbh->commit;
@@ -877,9 +893,10 @@ sub delete_job {
   $dbh->do($query) || $form->dberror($query);
 
   # delete all the assemblies
-  $query = qq|DELETE FROM assembly a
-              JOIN parts p ON (a.id = p.id)
-              WHERE p.project_id = $form->{id}|;
+  $query = qq|DELETE FROM assembly
+              WHERE aid IN
+              (SELECT id FROM parts
+               WHERE project_id = $form->{id})|;
   $dbh->do($query) || $form->dberror($query);
 	
   $query = qq|DELETE FROM parts

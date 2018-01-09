@@ -160,6 +160,37 @@ sub save_account {
     }
   }
 
+  # update taxpart and taxservice
+  if ($form->{oldIC_taxpart} ne $form->{IC_taxpart}) {
+    $query = qq|DELETE FROM partstax
+                WHERE parts_id IN (SELECT id FROM parts
+                                   WHERE inventory_accno_id > 0)
+                AND chart_id = $chart_id|;
+    $dbh->do($query) || $form->dberror($query);
+
+    if ($form->{IC_taxpart}) {
+      $query = qq|INSERT INTO partstax
+                  SELECT id, $chart_id FROM parts
+                  WHERE inventory_accno_id > 0|;
+      $dbh->do($query) || $form->dberror($query);
+    }
+  }
+
+  if ($form->{oldIC_taxservice} ne $form->{IC_taxservice}) {
+    $query = qq|DELETE FROM partstax
+                WHERE parts_id IN (SELECT id FROM parts
+                                   WHERE inventory_accno_id IS NULL)
+                AND chart_id = $chart_id|;
+    $dbh->do($query) || $form->dberror($query);
+
+    if ($form->{IC_taxservice}) {
+      $query = qq|INSERT INTO partstax
+                  SELECT id, $chart_id FROM parts
+                  WHERE inventory_accno_id IS NULL|;
+      $dbh->do($query) || $form->dberror($query);
+    }
+  }
+
   my %audittrail = ( tablename  => 'chart',
                      reference  => $form->{accno},
 		     formname   => '',
@@ -1531,6 +1562,8 @@ sub save_preferences {
   my ($self, $form, $memberfile, $userspath) = @_;
 
   my $config = new User $memberfile, $form->{login};
+  my $admin = new User $memberfile, "admin\@$config->{dbname}";
+  $config->{templates} = $admin->{templates};
 
   for (keys %$form) {
     $config->{$_} = $form->{$_};
@@ -1554,12 +1587,11 @@ sub save_preferences {
 sub save_defaults {
   my ($self, $myconfig, $form) = @_;
 
-  for (qw(IC IC_income IC_expense FX_gain FX_loss cashovershort)) { ($form->{$_}) = split /--/, $form->{$_} }
+  for (qw(IC IC_income IC_expense fxgainloss cashovershort)) { ($form->{$_}) = split /--/, $form->{$_} }
   $form->{inventory_accno} = $form->{IC};
   $form->{income_accno} = $form->{IC_income};
   $form->{expense_accno} = $form->{IC_expense};
-  $form->{fxgain_accno} = $form->{FX_gain};
-  $form->{fxloss_accno} = $form->{FX_loss};
+  $form->{fxgainloss_accno} = $form->{fxgainloss};
   $form->{cashovershort_accno} = $form->{cashovershort};
   
   # connect to database
@@ -1578,7 +1610,7 @@ sub save_defaults {
   $sth->execute('version', $form->{dbversion}) || $form->dberror;
   $sth->finish;
   
-  for (qw(inventory income expense fxgain fxloss cashovershort)) {
+  for (qw(inventory income expense fxgainloss cashovershort)) {
     $query = qq|INSERT INTO defaults (fldname, fldvalue)
                 VALUES ('${_}_accno_id', (SELECT id
 		                FROM chart
@@ -1586,10 +1618,13 @@ sub save_defaults {
     $dbh->do($query) || $form->dberror($query);
   }
  
-  for (qw(glnumber sinumber vinumber batchnumber vouchernumber sonumber ponumber sqnumber rfqnumber partnumber employeenumber customernumber vendornumber projectnumber precision)) {
+  for (qw(glnumber sinumber sonumber vinumber batchnumber vouchernumber ponumber sqnumber rfqnumber employeenumber customernumber vendornumber)) {
     $sth->execute($_, $form->{$_}) || $form->dberror;
     $sth->finish;
   }
+  $sth->execute("precision", $form->{precision}) || $form->dberror;
+  $sth->finish;
+
 
   # optional
   for (split / /, $form->{optional}) {
@@ -1626,8 +1661,7 @@ sub defaultaccounts {
   $form->{defaults}{IC_sale} = $form->{income_accno_id};
   $form->{defaults}{IC_expense} = $form->{expense_accno_id};
   $form->{defaults}{IC_cogs} = $form->{expense_accno_id};
-  $form->{defaults}{FX_gain} = $form->{fxgain_accno_id};
-  $form->{defaults}{FX_loss} = $form->{fxloss_accno_id};
+  $form->{defaults}{fxgainloss} = $form->{fxgainloss_accno_id};
   $form->{defaults}{cashovershort} = $form->{cashovershort_accno_id};
   
   $query = qq|SELECT c.id, c.accno, c.description, c.link,
@@ -1673,9 +1707,7 @@ sub defaultaccounts {
   while (my $ref = $sth->fetchrow_hashref(NAME_lc)) {
     $ref->{description} = $ref->{translation} if $ref->{translation};
 
-    %{ $form->{accno}{FX_gain}{$ref->{accno}} } = ( id => $ref->{id},
-                                      description => $ref->{description} );
-    %{ $form->{accno}{FX_loss}{$ref->{accno}} } = ( id => $ref->{id},
+    %{ $form->{accno}{fxgainloss}{$ref->{accno}} } = ( id => $ref->{id},
                                       description => $ref->{description} );
     %{ $form->{accno}{cashovershort}{$ref->{accno}} } = ( id => $ref->{id},
                                       description => $ref->{description} );

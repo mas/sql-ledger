@@ -121,8 +121,8 @@ sub new {
 
   $self->{menubar} = 1 if $self->{path} =~ /lynx/i;
 
-  $self->{version} = "3.2.3";
-  $self->{dbversion} = "3.2.0";
+  $self->{version} = "3.2.6";
+  $self->{dbversion} = "3.2.1";
 
   $self->{favicon} = 'favicon.ico';
 
@@ -391,7 +391,7 @@ sub info {
 
     delete $self->{pre};
 
-    if (!$self->{header}) {
+    unless ($self->{header}) {
       $self->header(0,1);
       print qq|
       <body>|;
@@ -1855,7 +1855,7 @@ sub format_string {
 
   if ($self->{format} =~ /(ps|pdf)/) {
     for (@fields) {
-      $self->{$_} =~ s~(https?://)(\S+)~\\href{$1$2}{$2}~g;
+      $self->{$_} =~ s~(https?://)([^\f\t\n\r ?]+)(\S*)~\\href{$1$2$3}{$2}~g;
     }
   }
 
@@ -2700,7 +2700,7 @@ sub all_vc {
 
   $self->all_departments($myconfig, $dbh, $vc);
   
-  $self->all_warehouses($myconfig, $dbh, $vc);
+  $self->all_warehouses($myconfig, $dbh);
   
   $self->all_projects($myconfig, $dbh, $transdate, $job);
 
@@ -2833,11 +2833,11 @@ sub all_projects {
     $disconnect = 1;
   }
   
-  my $where = "1 = 1";
+  my $where = "pr.parts_id = 0 OR pr.parts_id IS NULL";
 
-  $where = qq|id NOT IN (SELECT id
+  $where = qq|pr.id NOT IN (SELECT DISTINCT id
                          FROM parts
-			 WHERE project_id > 0)| if ! $job;
+			 WHERE project_id > 0)| if $job;
 			 
   my $query = qq|SELECT *
                  FROM project pr
@@ -3091,6 +3091,7 @@ sub create_links {
   my %xkeyref = ();
 
   my @df = qw(closedto revtrans weightunit cdt precision roundchange cashovershort_accno_id referenceurl);
+  push @df, "lock_%";
   my %defaults = $self->get_defaults($dbh, \@df);
   for (keys %defaults) { $self->{$_} = $defaults{$_} }
 
@@ -4465,6 +4466,10 @@ sub update_defaults {
 	  my @p = ();
 
 	  my @date = $self->split_date($myconfig->{dateformat}, $self->{transdate});
+          if ($p =~ /yyyy/i) {
+            $date[1] += 2000;
+          }
+
 	  for (sort keys %d) {
             push @p, $date[$d{$_}] if ($p =~ /$_/i);
             }
