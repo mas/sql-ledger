@@ -29,7 +29,7 @@ sub post_transaction {
   (undef, $form->{department_id}) = split(/--/, $form->{department});
   $form->{department_id} *= 1;
   
-  my %defaults = $form->get_defaults($dbh, \@{['fx%accno_id', 'cdt', 'precision']});
+  my %defaults = $form->get_defaults($dbh, \@{['fxgainloss_accno_id', 'cdt', 'precision']});
   $form->{precision} = $defaults{precision};
 
   my $ml = 1;
@@ -483,10 +483,9 @@ sub post_transaction {
 	  $amount = $form->round_amount(($form->round_amount($paid{fxamount}{$i} * $form->{exchangerate}, $form->{precision}) - $form->round_amount($paid{fxamount}{$i} * $form->{"exchangerate_$i"}, $form->{precision})) * -1, $form->{precision});
 	  
 	  if ($amount) {
-	    my $accno_id = (($amount * $ml * $arapml) > 0) ? $defaults{fxgain_accno_id} : $defaults{fxloss_accno_id};
 	    $query = qq|INSERT INTO acc_trans (trans_id, chart_id, amount,
 			transdate, fx_transaction, cleared, approved, vr_id)
-			VALUES ($form->{id}, $accno_id,
+			VALUES ($form->{id}, $defaults{fxgainloss_accno_id},
 			$amount * $ml * $arapml, '$form->{"datepaid_$i"}', '1',
 			$cleared, '$approved', $voucherid)|;
 	    $dbh->do($query) || $form->dberror($query);
@@ -1332,7 +1331,7 @@ sub company_details {
               WHERE id = $id|;
   ($form->{workphone}, $form->{workfax}, $form->{workmobile}) = $dbh->selectrow_array($query);
 
-  my @df = qw(weightunit cdt company companyemail companywebsite address tel fax businessnumber);
+  my @df = qw(weightunit cdt company companyemail companywebsite address tel fax businessnumber annualinterest latepaymentfee restockingcharge);
   my %defaults = $form->get_defaults($dbh, \@df);
   for (@df) { $form->{$_} = $defaults{$_} }
 
